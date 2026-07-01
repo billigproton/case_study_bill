@@ -1,0 +1,10 @@
+# Environment variables / model parameters (Azure OpenAI credentials, deployment config)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

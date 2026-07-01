@@ -1,0 +1,398 @@
+version: "1.0"
+source: "Guardian University Guide 2016 (methodology: https://www.theguardian.com/education/2015/may/25/methodology-behind-the-guardian-university-guide-2016)"
+data_coverage:
+  years: [2013, 2014, 2015]
+  scope: "UK universities ranked by The Guardian"
+
+# ---------------------------------------------------------------------------
+# ENTITIES (tables)
+# ---------------------------------------------------------------------------
+entities:
+
+  - name: guardian_ranking
+    description: >
+      Institution-level league table. Intended for prospective students who have
+      not yet decided which subject they wish to study. The Guardian score is derived
+      by averaging each institution's subject-level scores across all subjects it
+      teaches (weighted by student numbers and number of institutions in each subject
+      table). Only institutions that appear in at least 8 subject tables are included.
+    grain: "One row per institution per ranking year."
+    primary_key: [ranking_year, institution]
+    caveat: >
+      The metric columns in this table (NSS scores, student-staff ratio, entry tariff,
+      career prospects) are crude institutional averages supplied directly by HESA or
+      the NSS. They do not account for subject mix and cannot be used to mathematically
+      derive the guardian_score_per_100 or the institution's ranking position.
+      Only expenditure_per_student_per_10 and value_added_score_per_10 are
+      weighted averages rolled up from the subject-level table.
+
+  - name: guardian_subject_areas
+    description: >
+      Subject-level league table. This is the primary source the Guardian methodology
+      is built on. Each institution is compared only to other institutions teaching the
+      same subject. The eight performance indicators are computed at this level using
+      standardised S-scores, which are then rolled up to produce the institution-level
+      table. 62 subject areas are covered.
+    grain: "One row per institution per subject area per year."
+    primary_key: [subject_area_year, subject_area, institution]
+    caveat: >
+      An institution can appear here for a subject even if it does not appear in
+      guardian_ranking for that year (e.g. specialist institutions teaching fewer
+      than 8 subjects). The displayed metric values (pct_satisfied_*, value_added,
+      entry tariff) are presentational — the actual ranking is computed from
+      standardised S-scores which are not stored in this table.
+
+# ---------------------------------------------------------------------------
+# JOINS
+# ---------------------------------------------------------------------------
+joins:
+
+  - from: guardian_ranking
+    to: guardian_subject_areas
+    type: "1:N"
+    on:
+      - "guardian_ranking.institution = guardian_subject_areas.institution"
+      - "guardian_ranking.ranking_year = guardian_subject_areas.subject_area_year"
+    use_when: >
+      Use this join when a question requires both the institution's overall position
+      AND its performance in a specific subject (e.g. "Which subject is dragging
+      down University X?").
+    fan_out_warning: >
+      Joining these tables multiplies rows from guardian_ranking by the number of
+      subjects per institution. Never SUM or AVG a column from guardian_ranking
+      after joining — always aggregate on the guardian_subject_areas side.
+    anti_join_note: >
+      33–39 institutions per year exist in guardian_subject_areas but NOT in
+      guardian_ranking (specialist institutions with fewer than 8 subjects).
+      Use a LEFT JOIN from guardian_subject_areas to guardian_ranking to surface them.
+
+# ---------------------------------------------------------------------------
+# DIMENSIONS (non-metric columns used for filtering / grouping)
+# ---------------------------------------------------------------------------
+dimensions:
+
+  - column: ranking_year
+    table: guardian_ranking
+    description: "Edition/publication year of the league table (2013, 2014 or 2015)."
+    synonyms: ["year", "edition", "academic year"]
+
+  - column: institution
+    table: guardian_ranking
+    description: "Name of the UK university or higher education institution."
+    synonyms: ["university", "uni", "college", "school"],
+
+  - column: ranking
+    table: guardian_ranking
+    description: "Overall institutional rank in the given year. 1 = best."
+    synonyms: ["position", "place", "overall rank", "league position"]
+
+  - column: ranking_prev
+    table: guardian_ranking
+    description: "Institutional rank in the previous year's edition."
+    synonyms: ["previous rank", "last year rank"]
+
+  - column: ranking_change
+    table: guardian_ranking
+    description: >
+      Change in rank versus the previous year. Negative value means the institution
+      moved up (improved); positive means it moved down.
+    synonyms: ["rank change", "movement", "change in position"]
+
+  - column: subject_area_year
+    table: guardian_subject_areas
+    description: "Edition/publication year of the subject table (2013, 2014 or 2015)."
+    synonyms: ["year", "edition"]
+
+  - column: subject_area
+    table: guardian_subject_areas
+    description: >
+      Name of the academic subject (e.g. Law, Economics, Computer Science & Information
+      Systems). 62 subjects are covered. Institutions are compared only within the same
+      subject.
+    synonyms: ["subject", "course", "department", "discipline", "field"]
+
+  - column: institution
+    table: guardian_subject_areas
+    description: "Name of the UK university or higher education institution."
+    synonyms: ["university", "uni", "college", "school"]
+
+  - column: subject_area_rank
+    table: guardian_subject_areas
+    description: "Rank of the institution within this subject and year. 1 = best."
+    synonyms: ["subject rank", "position in subject", "department rank"]
+
+  - column: subject_area_rank_prev
+    table: guardian_subject_areas
+    description: "Rank within this subject in the previous year's edition."
+
+  - column: subject_area_rank_change
+    table: guardian_subject_areas
+    description: >
+      Change in subject rank versus the previous year. Negative = improved;
+      positive = declined.
+
+# ---------------------------------------------------------------------------
+# METRICS (numeric performance indicators)
+# ---------------------------------------------------------------------------
+metrics:
+
+  # --- guardian_ranking metrics ---
+
+  - column: guardian_score_per_100
+    table: guardian_ranking
+    display_name: "Guardian Score (out of 100)"
+    description: >
+      Composite score between 0 and 100 representing the institution's overall
+      performance. Derived by averaging the institution's subject-level Total S-scores
+      across all subjects it teaches, weighted by (a) the number of students in each
+      subject and (b) the natural logarithm of the number of institutions ranked in
+      each subject table. The top institution receives 100; all others receive a
+      proportionally lower score.
+    synonyms: ["overall score", "guardian score", "total score", "guardian rating", "score"]
+    higher_is_better: true
+    caveat: >
+      Cannot be recalculated from the other columns in this table — those are crude
+      HESA/NSS averages disconnected from the subject-level computation.
+
+  - column: nss_teaching_pct
+    table: guardian_ranking
+    display_name: "NSS Teaching Satisfaction (%)"
+    description: >
+      Percentage of final-year undergraduate students who were satisfied with the
+      quality of teaching at their institution, based on the National Student Survey
+      (NSS). Students responded to four positive statements about their teaching
+      experience.
+    synonyms: ["teaching satisfaction", "teaching score", "NSS teaching", "teaching quality"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      Crude institutional average from HESA/NSS, not adjusted for subject mix.
+      Subjective measure — students at high-reputation institutions may have higher
+      expectations and rate teaching more critically than equivalent teaching at a
+      lower-ranked institution.
+
+  - column: nss_overall_pct
+    table: guardian_ranking
+    display_name: "NSS Overall Satisfaction (%)"
+    description: >
+      Percentage of final-year undergraduates who were satisfied overall with the
+      quality of their course, based on a single summary question in the NSS.
+    synonyms: ["overall satisfaction", "student satisfaction", "course satisfaction", "NSS overall"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      Crude institutional average, not adjusted for subject mix. Highly subjective —
+      dependent on student expectations rather than absolute teaching quality.
+
+  - column: expenditure_per_student_per_10
+    table: guardian_ranking
+    display_name: "Expenditure per Student (scaled /10)"
+    description: >
+      Amount the institution spends per student on academic provision (excluding
+      academic staff costs, which are captured in student_staff_ratio) plus spending
+      on academic services such as library and computing facilities. Displayed as a
+      score out of 10.
+    synonyms: ["spend per student", "spending", "expenditure", "investment per student"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      This column IS a weighted average rolled up from subject-level data (unlike
+      the NSS columns). Reduced from 15% to 10% weighting in the 2016 edition due
+      to volatility caused by one-off high spends.
+
+  - column: student_staff_ratio
+    table: guardian_ranking
+    display_name: "Student-to-Staff Ratio"
+    description: >
+      Number of students per member of teaching staff. A lower ratio means fewer
+      students per teacher and is treated as better in the ranking.
+    synonyms: ["SSR", "staff ratio", "students per staff", "class size"]
+    higher_is_better: false
+    source: "HESA"
+    caveat: >
+      Crude institutional average, not adjusted for subject mix. Excludes staff
+      classified as "research only" but includes researchers who also teach, even
+      if research takes up most of their time. Does not reveal who actually does
+      the teaching (professor vs. graduate teaching assistant).
+
+  - column: career_prospects_pct
+    table: guardian_ranking
+    display_name: "Career Prospects (%)"
+    description: >
+      Percentage of graduates who found graduate-level employment and/or entered
+      further higher education or professional study within six months of graduation.
+      Based on the Destinations of Leavers from Higher Education (DLHE) survey.
+    synonyms: ["employability", "graduate outcomes", "career prospects", "employment rate", "jobs"]
+    higher_is_better: true
+    source: "DLHE (Destinations of Leavers from Higher Education)"
+    caveat: >
+      Crude institutional average, not adjusted for subject mix. Measured at
+      6 months after graduation — does not capture longer-term career trajectories.
+
+  - column: value_added_score_per_10
+    table: guardian_ranking
+    display_name: "Value Added Score (out of 10)"
+    description: >
+      Measures how much academic value the institution adds beyond what would be
+      expected given students' entry qualifications. Each student is assigned a
+      probability of achieving a 1st or 2:1 based on their qualifications upon
+      entry. If they achieve a good degree, they score points reflecting how
+      difficult it was (reciprocal of probability). Institutions that successfully
+      convert students with lower entry qualifications score highly. Displayed as
+      a score out of 10.
+    synonyms: ["value added", "VA score", "teaching effectiveness", "degree outcomes"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      This column IS a weighted average rolled up from subject-level data (unlike
+      the NSS columns). A variant methodology is used for medicine, dentistry and
+      veterinary science where degrees are often unclassified.
+
+  - column: entry_tariff
+    table: guardian_ranking
+    display_name: "Average Entry Tariff"
+    description: >
+      Average UCAS tariff points of first-year, full-time undergraduate students
+      aged under 21 at the start of their course. Used as a proxy for the academic
+      aptitude of fellow students a prospective student can expect.
+    synonyms: ["entry points", "UCAS points", "entry grades", "A-level points", "entry qualifications"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      Crude institutional average, not adjusted for subject mix. Institutions
+      running access or contextual admissions programmes may show a lower tariff
+      despite strong value-added scores — a lower tariff here does not indicate
+      lower quality.
+
+  - column: nss_feedback_pct
+    table: guardian_ranking
+    display_name: "NSS Assessment & Feedback Satisfaction (%)"
+    description: >
+      Percentage of final-year undergraduates satisfied with the way their work
+      was assessed and the usefulness of feedback received, based on five NSS
+      statements.
+    synonyms: ["feedback satisfaction", "assessment satisfaction", "NSS feedback", "feedback score"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      Crude institutional average, not adjusted for subject mix.
+
+  # --- guardian_subject_areas metrics ---
+
+  - column: guardian_score_per_100
+    table: guardian_subject_areas
+    display_name: "Guardian Subject Score (out of 100)"
+    description: >
+      Composite score between 0 and 100 for this institution within this subject.
+      Computed by standardising each of the eight performance indicators relative
+      to other institutions in the same subject table (S-scores), weighting them,
+      and summing. The best-performing institution in each subject receives 100.
+    synonyms: ["subject score", "guardian score", "score", "department score"]
+    higher_is_better: true
+
+  - column: pct_satisfied_with_teaching
+    table: guardian_subject_areas
+    display_name: "% Satisfied with Teaching"
+    description: >
+      Percentage of final-year undergraduates in this subject who were satisfied
+      with the quality of teaching, based on four NSS statements.
+    synonyms: ["teaching satisfaction", "NSS teaching", "teaching score", "teaching quality"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      This is a presentational "satisfaction rate" statistic. The actual ranking
+      S-score is computed from the NSS "average response" score (1–5 scale), not
+      from this displayed percentage. Subjective and dependent on student expectations.
+
+  - column: pct_satisfied_overall_with_course
+    table: guardian_subject_areas
+    display_name: "% Satisfied Overall with Course"
+    description: >
+      Percentage of final-year undergraduates in this subject who were satisfied
+      overall with their course, based on a single NSS summary question.
+    synonyms: ["overall satisfaction", "course satisfaction", "student satisfaction"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      Presentational statistic. Ranking is computed from the NSS average response
+      score, not this percentage. Highly subjective.
+
+  - column: expenditure_per_student_fte
+    table: guardian_subject_areas
+    display_name: "Expenditure per Student FTE"
+    description: >
+      Amount the institution spends providing this subject per full-time equivalent
+      (FTE) student, excluding academic staff costs, plus a share of institution-wide
+      academic services expenditure (library, IT). Direct input to the S-score.
+    synonyms: ["spend per student", "expenditure", "subject spending", "department spending"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      Requires a minimum of 30 FTE students in the subject for a single-year
+      calculation. Smaller departments may use a two-year average or be suppressed.
+
+  - column: student_staff_ratio
+    table: guardian_subject_areas
+    display_name: "Student-to-Staff Ratio (Subject)"
+    description: >
+      Number of students per teaching staff member in this subject. Lower is better.
+      Direct input to the S-score (with a negative sign — lower ratio → higher score).
+    synonyms: ["SSR", "staff ratio", "students per staff"]
+    higher_is_better: false
+    source: "HESA"
+    caveat: >
+      Requires at least 28 students and 3 staff (FTE). Excludes "research only" staff.
+
+  - column: career_prospects
+    table: guardian_subject_areas
+    display_name: "Career Prospects (Subject, %)"
+    description: >
+      Percentage of graduates from this subject who found graduate-level employment
+      or entered further study within six months of graduation. Direct input to
+      the S-score.
+    synonyms: ["employability", "graduate outcomes", "employment", "jobs", "career prospects"]
+    higher_is_better: true
+    source: "DLHE"
+    caveat: >
+      Requires at least 25 respondents. For medicine, dentistry and veterinary
+      science this metric has 0% weighting in the S-score calculation.
+
+  - column: value_added_score_per_10
+    table: guardian_subject_areas
+    display_name: "Value Added Score (Subject, out of 10)"
+    description: >
+      How much academic value this department adds relative to students' entry
+      qualifications. Score out of 10 derived from the subject-level S-score.
+      Requires at least 30 students for a single-year calculation.
+    synonyms: ["value added", "VA", "teaching effectiveness", "degree outcomes"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      A modified methodology is used for medicine, dentistry and veterinary science
+      because those degrees are often unclassified.
+
+  - column: average_entry_tariff
+    table: guardian_subject_areas
+    display_name: "Average Entry Tariff (Subject)"
+    description: >
+      Average UCAS tariff points of first-year full-time undergraduates aged under 21
+      entering this subject. Direct input to the S-score.
+    synonyms: ["entry points", "UCAS points", "entry grades", "A-level points"]
+    higher_is_better: true
+    source: "HESA"
+    caveat: >
+      Subjects where the majority of entrants are mature students (aged 21+) are
+      excluded from this measure entirely.
+
+  - column: pct_satisfied_with_assessment
+    table: guardian_subject_areas
+    display_name: "% Satisfied with Assessment & Feedback"
+    description: >
+      Percentage of final-year undergraduates in this subject satisfied with how
+      their work was assessed and the quality of feedback, based on five NSS statements.
+    synonyms: ["feedback satisfaction", "assessment satisfaction", "NSS feedback"]
+    higher_is_better: true
+    source: "National Student Survey (NSS)"
+    caveat: >
+      Presentational statistic. Ranking is computed from the NSS average response
+      score, not this percentage.
