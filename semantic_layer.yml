@@ -5,7 +5,7 @@ data_coverage:
   scope: "UK universities ranked by The Guardian"
 
 # ---------------------------------------------------------------------------
-# ENTITIES (tables)
+# Entity (tabulky)
 # ---------------------------------------------------------------------------
 entities:
 
@@ -43,7 +43,7 @@ entities:
       standardised S-scores which are not stored in this table.
 
 # ---------------------------------------------------------------------------
-# JOINS
+# Joiny
 # ---------------------------------------------------------------------------
 joins:
 
@@ -67,7 +67,7 @@ joins:
       Use a LEFT JOIN from guardian_subject_areas to guardian_ranking to surface them.
 
 # ---------------------------------------------------------------------------
-# DIMENSIONS (non-metric columns used for filtering / grouping)
+# Dimenze (používané pro filtry nebo grupaci)
 # ---------------------------------------------------------------------------
 dimensions:
 
@@ -132,7 +132,7 @@ dimensions:
       positive = declined.
 
 # ---------------------------------------------------------------------------
-# METRICS (numeric performance indicators)
+# Metriky
 # ---------------------------------------------------------------------------
 metrics:
 

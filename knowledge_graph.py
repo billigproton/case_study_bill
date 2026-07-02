@@ -1,9 +1,9 @@
 """
 knowledge_graph.py
-Simple knowledge graph for disambiguating university names and group aliases
-before passing questions to the SQL generator.
+Jednoduchý knowledge graph pro disambiguaci názvů univerzit a skupinových aliasů
+před předáním otázky generátoru SQL dotazů.
 
-Usage:
+Použití:
     from knowledge_graph import resolve
 
     resolved, notes = resolve("How do Oxbridge universities compare?")
@@ -15,11 +15,11 @@ from __future__ import annotations
 import re
 
 # ---------------------------------------------------------------------------
-# 1. CANONICAL ALIASES
-#    User says X → stored in DB as Y (one-to-one)
+# 1. KANONICKÉ ALIASY
+#    Uživatel napíše X → v DB je uloženo jako Y (jedna ku jedné)
 # ---------------------------------------------------------------------------
 ALIASES: dict[str, str] = {
-    # Full official names → short DB name
+    # Plný oficiální název → krátký název v DB
     "university of cambridge":          "Cambridge",
     "university of oxford":             "Oxford",
     "university of london":             "UCL",
@@ -71,7 +71,7 @@ ALIASES: dict[str, str] = {
     "swansea university":               "Swansea",
     "university of aberystwyth":        "Aberystwyth",
     "aberystwyth university":           "Aberystwyth",
-    # Common abbreviations / nicknames
+    # Běžné zkratky / přezdívky
     "lse":                              "London School of Economics",
     "ucl":                              "UCL",
     "kcl":                              "King's College London",
@@ -86,8 +86,8 @@ ALIASES: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# 2. GROUP EXPANSIONS
-#    User says X → list of DB institution names (one-to-many)
+# 2. ROZBALENÍ SKUPIN
+#    Uživatel napíše X → seznam názvů institucí v DB (jedna ku více)
 # ---------------------------------------------------------------------------
 GROUPS: dict[str, list[str]] = {
     "oxbridge": [
@@ -98,20 +98,20 @@ GROUPS: dict[str, list[str]] = {
 
 
 # ---------------------------------------------------------------------------
-# 3. RESOLUTION LOGIC
+# 3. LOGIKA DISAMBIGUACE
 # ---------------------------------------------------------------------------
 
 def _normalise(text: str) -> str:
-    """Lowercase and strip punctuation for matching."""
+    """Převede text na malá písmena a odstraní interpunkci pro účely porovnávání."""
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
 
 
 def resolve(question: str) -> tuple[str, list[str]]:
     """
-    Scan the question for known aliases and group names.
-    Returns:
-        resolved_question : str   — question with aliases replaced by DB names
-        notes             : list  — human-readable disambiguation log
+    Projde otázku a hledá známé aliasy a názvy skupin.
+    Vrací:
+        resolved_question : str   — otázka s aliasy nahrazenými názvy z DB
+        notes              : list — čitelný log provedených nahrazení
     """
     notes: list[str] = []
     replaced_spans: list[tuple[int, int]] = []
@@ -124,7 +124,7 @@ def resolve(question: str) -> tuple[str, list[str]]:
 
     resolved = question
 
-    # 1. Group expansions (one → many) — longer phrases first
+    # 1. Rozbalení skupin (jedna ku více) — nejprve delší fráze
     for group_key, members in sorted(GROUPS.items(), key=lambda x: -len(x[0])):
         pattern = re.compile(re.escape(group_key), re.IGNORECASE)
         match = pattern.search(resolved)
@@ -135,7 +135,7 @@ def resolve(question: str) -> tuple[str, list[str]]:
             replaced_spans.append((match.start(), match.start() + len(in_clause)))
             notes.append(f"'{group_key}' → {', '.join(members)}")
 
-    # 2. Alias substitutions (one → one) — longer aliases first, skip replaced spans
+    # 2. Nahrazení aliasů (jedna ku jedné) — nejprve delší aliasy, přeskočit již nahrazené úseky
     for alias, canonical in sorted(ALIASES.items(), key=lambda x: -len(x[0])):
         pattern = re.compile(re.escape(alias), re.IGNORECASE)
         match = pattern.search(resolved)
