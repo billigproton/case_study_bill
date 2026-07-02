@@ -28,4 +28,4 @@ Samotný přístup k řešení je zmíněn v přiložené prezentaci (viz sekce 
 
 ## Můj přístup k řešení
 
-Prezentace shrnující můj přístup k řešení: *(odkaz bude doplněn)*
+Prezentace shrnující můj přístup k řešení *[(League Data Case Study: My Approach)](https://1drv.ms/p/c/f9b898b51413f654/IQAMn3rKRSWSTbUSMs6uTQBJAZ-elC3SFrTFsRg7HjoqkjY?e=TjB1M6)*
