@@ -9,6 +9,10 @@ a vrátí uživateli srozumitelnou odpověď.
 
 Samotný přístup k řešení je zmíněn v přiložené prezentaci (viz sekce Můj přístup k řešení)
 
+## Ukázka řešení
+
+![Ukázka chatbota University League Helper](img/ukazka_reseni.png)
+
 ## Soubory a jejich význam
 
 | Soubor / složka | Význam |
@@ -23,6 +27,7 @@ Samotný přístup k řešení je zmíněn v přiložené prezentaci (viz sekce 
 | `qa_log.json` | Log všech interakcí s chatbotem (otázka, vygenerovaný SQL dotaz, odpověď). |
 | `tests.ipynb` | Jupyter notebook s testy a průzkumem dat při přípravě relační databáze (např. ověření unikátnosti primárních klíčů). |
 | `League Data entity relationship diagram.drawio` | Entity-relationship diagram (ERD) datového modelu dat převedených do relační struktury |
+| `img/` | Obrázky použité v README (ukázka řešení). |
 | `.env` | Lokální konfigurace (přístupové údaje k Azure OpenAI) — není součástí repozitáře (viz `.gitignore`). |
 | `.gitignore` | Vynechává citlivé a generované soubory (`.env`, `__pycache__` apod.) z verzování. |
 
